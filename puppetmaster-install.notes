@@ -1,0 +1,247 @@
+[root@puppetmaster vagrant]$ sudo yum -y install nano git ntp
+Loaded plugins: fastestmirror
+Setting up Install Process
+Loading mirror speeds from cached hostfile
+
+[root@puppetmaster vagrant]# yum install -y http://yum.puppetlabs.com/puppetlabs-release-el-6.noarch.rpm
+Loaded plugins: fastestmirror
+Setting up Install Process
+puppetlabs-release-el-6.noarch.rpm  
+
+[root@puppetmaster vagrant]# yum install -y puppet-server
+
+[root@puppetmaster vagrant]# puppet master --version
+3.8.7
+
+default site manifest is loaded: /etc/puppet/manifests/site.pp
+puppet program: pp
+one site manifest per puppet master
+
+directory environment: can have more than one environment
+test, dev and prod
+
+environment timeout: 3 minutes (default)
+
+configuration file: /etc/puppet/puppet.conf
+-present on both puppet master and agents
+
+[main]
+logdir = /var/log/puppet
+rundir = /var/run/puppet (puppet process ids)
+ssldir = $vardir/ssl (certificates)
+
+[master]
+environmentpath = $confdir/environments
+basemodulepath = $confdir/modules:/opt/puppet/share/puppet/modules
+
+$confdir = /etc/puppet (by default)
+
+[agent]
+classfile = $vardir/classes.txt
+localconfig = $vardir/localconfig
+
+puppet master can run as an agent as well
+you can use configuration management on master
+
+[root@puppetmaster ~]# mkdir -p /etc/puppet/environments/production/{modules,manifests}
+
+[root@puppetmaster ~]# tree /etc/puppet/environments/production/
+/etc/puppet/environments/production/
+├── manifests
+└── modules
+
+2 directories, 0 files
+[root@puppetmaster ~]# 
+
+[root@puppetmaster ~]# cd /etc/puppet/environments/production/
+[root@puppetmaster production]# nano environment.conf
+[root@puppetmaster production]# cat environment.conf 
+modulepath = /etc/puppet/environments/production/modules
+environment_timeout = 5s
+
+[root@puppetmaster production]# tree
+.
+├── environment.conf
+├── manifests
+└── modules
+
+2 directories, 1 file
+
+[root@puppetmaster puppet]# cat /etc/puppet/puppet.conf 
+[main]
+    # The Puppet log directory.
+    # The default value is '$vardir/log'.
+    logdir = /var/log/puppet
+
+    # Where Puppet PID files are kept.
+    # The default value is '$vardir/run'.
+    rundir = /var/run/puppet
+
+    # Where SSL certificates are kept.
+    # The default value is '$confdir/ssl'.
+    ssldir = $vardir/ssl
+
+#alternative that agents can use to connect to the puppetmaster
+#generic dns names, no reconfiguration is required.
+# master and agent communicate via SSL
+
+ADD:    dns_alt_names = puppet,puppetmaster,puppetmaster.benpiper.com
+
+#defining master environment, $confdir /etc/puppet
+ADD: [master]
+ADD:    environmentpath = $confdir/environments
+ADD:    basemodulepath = $confdir/modules:/opt/puppet/share/modules
+
+[agent]
+    # The file in which puppetd stores a list of the classes
+    # associated with the retrieved configuratiion.  Can be loaded in
+    # the separate ``puppet`` executable using the ``--loadclasses``
+    # option.
+    # The default value is '$confdir/classes.txt'.
+    classfile = $vardir/classes.txt
+
+    # Where puppetd caches the local configuration.  An
+    # extension indicating the cache format is added automatically.
+    # The default value is '$confdir/localconfig'.
+    localconfig = $vardir/localconfig
+
+SELinux (Security Enhanced Linux) in permissive, not disabled.
+
+SELinux -> Certs -> Firewall
+
+facilitates troubleshooting:
+-eliminates SELinux as a cause of problems
+-correct potential problems SELinux would cause if enabled
+
+more secure
+-less likely to modify configurations
+
+[root@puppetmaster puppet]# setenforce permissive
+[root@puppetmaster puppet]# sed -i 's\=enforcing\=permissive\g' /etc/sysconfig/selinux
+[root@puppetmaster puppet]# getenforce
+Permissive
+
+SSL - encrypt traffic between master and nodes
+#puppet master --verbose --no-daemonize (runs the ssl certs in the foregroudn)
+- this creates SSL certs
+
+confirm ssl certs are created in /var/lib/puppet/ssl
+[root@puppetmaster puppet]# tree /var/lib/puppet/ssl/
+/var/lib/puppet/ssl/
+├── ca
+│   ├── ca_crl.pem
+│   ├── ca_crt.pem
+│   ├── ca_key.pem
+│   ├── ca_pub.pem
+│   ├── inventory.txt
+│   ├── private
+│   │   └── ca.pass
+│   ├── requests
+│   ├── serial
+│   └── signed
+│       └── puppetmaster.home.pem
+├── certificate_requests
+├── certs
+│   ├── ca.pem
+│   └── puppetmaster.home.pem
+├── crl.pem
+├── private
+├── private_keys
+│   └── puppetmaster.home.pem
+└── public_keys
+    └── puppetmaster.home.pem
+
+9 directories, 13 files
+
+you can delete this /var/lib/puppet/ssl directory and regenerate ssl certs: 
+#puppet master --verbose --no-daemonize
+
+#iptables -L
+configured in /etc/sysconfig/iptables
+
+# nano /etc/sysconfig/iptables
+add this line:
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 8140 -j ACCEPT
+where 8140 is the port where puppet runs on
+
+restart iptables
+# service iptables restart
+iptables: Setting chains to policy ACCEPT: filter          [  OK  ]
+iptables: Flushing firewall rules:                         [  OK  ]
+iptables: Unloading modules:                               [  OK  ]
+iptables: Applying firewall rules:                         [  OK  ]
+
+# iptables -L|grep 8140
+ACCEPT     tcp  --  anywhere             anywhere            state NEW tcp dpt:8140 
+
+Puppet is a Ruby (PL) on Rails (web application framework) app.
+Puppet nodes communicates with the master with HTTP using an API.
+Puppet master setup -> HTTP connection is terminated by a web server called WEBrick.
+-WEBrick is the Ruby on Rails framework that uses for default web server.
+-only for testing and dev, not for production environments
+
+Alternative for production: Apache
+-strictly a web server
+-cannot natively run Ruby
+-Phusion Passenger: runs the Puppet Master Ruby application, integrates with Apache
+
+Install Apache -> Install Passenger -> Configure Puppet Master App -> Run Apache
+
+[root@puppetmaster puppet]# yum install -y httpd httpd-devel mod_ssl ruby-devel ruby-gems gcc gcc-c++ libcurl-devel openssl-devel
+
+Installing passenger through Ruby gems
+# gem install rake --version 10.4.2
+# gem install rack --version 1.6.0
+# gem install passenger --version 4.0.56
+# gem install daemon_controller --version 1.2.0
+
+Install passenger apache module
+# passenger-install-apache2-module
+
+Press enter and select Ruby as default language.
+
+When it's done installing:
+   LoadModule passenger_module /usr/lib/ruby/gems/1.8/gems/passenger-4.0.56/buildout/apache2/mod_passenger.so
+   <IfModule mod_passenger.c>
+     PassengerRoot /usr/lib/ruby/gems/1.8/gems/passenger-4.0.56
+     PassengerDefaultRuby /usr/bin/ruby
+   </IfModule>
+   
+# mkdir -p /usr/share/puppet/rack/puppetmasterd/{public,tmp}
+
+Copy default configuration file to the puppetmaster application directory.
+
+# cp /usr/share/puppet/ext/rack/config.ru /usr/share/puppet/rack/puppetmasterd/
+
+# chown puppet:puppet /usr/share/puppet/rack/puppetmasterd/config.ru 
+
+# ls -la /usr/share/puppet/rack/puppetmasterd/config.ru 
+-rw-r--r--. 1 puppet puppet 1229 Jun 29 21:49 /usr/share/puppet/rack/puppetmasterd/config.ru
+
+Configure passenger
+$ cd ~
+$ git clone https://github.com/benpiper/puppet-fundamentals-puppetmaster
+$ cd puppet-fundamentals-puppetmaster
+$ nano puppetmaster.conf
+
+Change the following lines to reflect the passenger version to what you installed earlier:
+LoadModule passenger_module /usr/lib/ruby/gems/1.8/gems/passenger-4.0.56/buildout/apache2/mod_passenger.so
+PassengerRoot /usr/lib/ruby/gems/1.8/gems/passenger-4.0.56
+
+Change the following ssl lines to reflect the puppetmaster name:
+SSLCertificateFile  /var/lib/puppet/ssl/certs/puppetmaster.home.pem
+SSLCertificateKeyFile   /var/lib/puppet/ssl/private_keys/puppetmaster.home.pem
+-> make sure that the certs's name are the same in the ssl directory
+
+$ sudo cp puppetmaster.conf /etc/httpd/conf.d/puppetmaster.conf
+
+sudo service httpd restart
+Stopping httpd:                                            [  OK  ]
+Starting httpd: httpd: Could not reliably determine the server's fully qualified domain name, using 127.0.0.1 for ServerName
+                                                           [  OK  ]
+
+make sure httpd is on auto-start
+$ sudo chkconfig httpd on
+$ sudo chkconfig --list httpd 
+httpd           0:off 1:off 2:on  3:on  4:on  5:on  6:off
+
