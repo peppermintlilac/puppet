@@ -1,0 +1,274 @@
+Modules: are reusable
+
+Create a custom MediaWiki module -> Use and Test -> Download Modules from Puppet Forge -> Incorporate modules into media wiki
+
+Creating the MediaWiki:
+
+$ cd /etc/puppet/environments/production/modules
+$ sudo puppet module generate yourname-mediawiki --environment production
+$ sudo mv yourname-mediawiki mediawiki
+
+[root@puppetmaster modules]# puppet module generate my-mediawiki --environment production
+We need to create a metadata.json file for this module.  Please answer the
+following questions; if the question is not applicable to this module, feel free
+to leave it blank.
+
+Puppet uses Semantic Versioning (semver.org) to version modules.
+What version is this module?  [0.1.0]
+--> 
+
+Who wrote this module?  [my]
+--> 
+
+What license does this module code fall under?  [Apache 2.0]
+--> 
+
+How would you describe this module in a single sentence?
+--> install and configure mediawiki
+
+Where is this module's source code repository?
+--> 
+
+Where can others go to learn more about this module?
+--> 
+
+Where can others go to file issues about this module?
+--> 
+
+----------------------------------------
+{
+  "name": "my-mediawiki",
+  "version": "0.1.0",
+  "author": "my",
+  "summary": "install and configure mediawiki",
+  "license": "Apache 2.0",
+  "source": "",
+  "issues_url": null,
+  "project_page": null,
+  "dependencies": [
+    {"version_requirement":">= 1.0.0","name":"puppetlabs-stdlib"}
+  ]
+}
+----------------------------------------
+
+About to generate this metadata; continue? [n/Y]
+--> 
+
+Notice: Generating module at /etc/puppet/environments/production/modules/my-mediawiki...
+Notice: Populating templates...
+Finished; module generated in my-mediawiki.
+my-mediawiki/README.md
+my-mediawiki/spec
+my-mediawiki/spec/classes
+my-mediawiki/spec/classes/init_spec.rb
+my-mediawiki/spec/spec_helper.rb
+my-mediawiki/tests
+my-mediawiki/tests/init.pp
+my-mediawiki/Rakefile
+my-mediawiki/metadata.json
+my-mediawiki/Gemfile
+my-mediawiki/manifests
+my-mediawiki/manifests/init.pp
+
+[root@puppetmaster modules]# mv my-mediawiki/ mediawiki/
+[root@puppetmaster modules]# tree mediawiki/
+mediawiki/
+├── Gemfile
+├── manifests
+│   └── init.pp
+├── metadata.json
+├── Rakefile
+├── README.md
+├── spec
+│   ├── classes
+│   │   └── init_spec.rb
+│   └── spec_helper.rb
+└── tests
+    └── init.pp
+
+4 directories, 8 files
+
+[root@puppetmaster modules]# cd mediawiki/
+[root@puppetmaster mediawiki]# cd manifests/
+[root@puppetmaster manifests]# ls
+init.pp
+[root@puppetmaster manifests]# nano init.pp 
+contains a class called mediawiki:
+class mediawiki {
+
+}
+
+module structure:
+manifests
+files
+templates
+lib
+facts.d
+tests
+spec
+
+files: files directory is for static files; files that do NOT change.
+templates: for changing files, templates directory is where those files are stored. 
+-> mixed for static and dynamic content
+
+lib: contains custom facts
+-> $osfamily (see facter)
+
+facts.d
+-> external facts, instead of using Ruby, you can use see a script or any language
+
+test: for unit testing
+spec: for unit testing
+
+Inorder for Apache to talk to MySQL, need php mysql
+selector goes to nodes.pp
+use that selector in the package resource
+invoke mediawiki class under each node definition
+
+[root@puppetmaster manifests]# nano init.pp 
+[root@puppetmaster manifests]# tail -15 init.pp 
+# Copyright 2017 Your name here, unless otherwise noted.
+#
+class mediawiki {
+  $phpmysql = $osfamily ? {
+
+    'redhat' => 'php-mysql',
+    'debian' => 'php5-mysql',
+    default  => 'php-mysql',
+  }
+
+  # call selector for package resource
+  package { $phpmysql:
+     ensure => 'present',
+  }
+}
+
+in each node, call the mediawiki module:
+[root@puppetmaster manifests]# nano nodes.pp 
+node 'wiki' {
+
+  class { 'linux': }
+  class { 'mediawiki' : }
+}
+
+node 'wikitest' {
+
+  class { 'linux': }
+  class { 'mediawiki': }
+}
+
+vagrant@wikitest:~$ sudo puppet agent --verbose --no-daemonize --onetime
+Warning: Setting templatedir is deprecated. See http://links.puppetlabs.com/env-settings-deprecations
+   (at /usr/lib/ruby/vendor_ruby/puppet/settings.rb:1139:in `issue_deprecation_warning')
+Info: Retrieving plugin
+Info: Caching catalog for wikitest.home
+Info: Applying configuration version '1499116265'
+Notice: /Stage[main]/Mediawiki/Package[php5-mysql]/ensure: ensure changed 'purged' to 'present'
+Info: Computing checksum on file /info.txt
+Info: /Stage[main]/Linux/File[/info.txt]: Filebucketed /info.txt to puppet with sum 1d6063d9faf46b029ab8ad0dbf5afb80
+Notice: /Stage[main]/Linux/File[/info.txt]/content: content changed '{md5}1d6063d9faf46b029ab8ad0dbf5afb80' to '{md5}1ca510ce40d94be87d90c88a44492fb4'
+Notice: Finished catalog run in 3.35 seconds
+
+CONDITIONAL STATEMENT
+need to install phpxml on centos
+init.pp under mediawiki manifest
+
+  if $osfamily == 'redhat' {
+    package { 'php-xml':
+      ensure => 'present',
+    }
+  }
+
+Installing modules:
+
+[root@puppetmaster manifests]# puppet module install puppetlabs-apache --modulepath /etc/puppet/environments/production/modules
+Notice: Preparing to install into /etc/puppet/environments/production/modules ...
+Notice: Downloading from https://forgeapi.puppetlabs.com ...
+
+in init.pp under mediawiki modules:
+  class { '::apache':
+    # this is where we will put the mediawiki app files
+    docroot => '/var/www/html',
+    # prefork is required by another module
+    mpm_module => 'prefork',
+    # subscribe is a metaparameter
+    # if pkg phpmysql resource ever changes, apache needs to be restarted
+    # ensures mysql gets installed before apache gets restarted
+    subscribe => Package[$phpmysql],
+  }
+
+  # double-colons mean that puppet needs to look for apache class
+  # top scope
+  # puppet is going to look straight on the apache module
+  class { '::apache::mod::php': }
+
+Fetch mediawiki app files from mediawiki Github repo and place them in /var/www/html
+https://github.com/wikimedia/mediawiki.git
+
+Puppet doesn't have a built-in method to use git so need VSCrepo: git functionality
+
+  vcsrepo { '/var/www/html':
+    ensure => 'present',
+    provider => 'git',
+    source => "https://github.com/wikimedia/mediawiki.git",
+    revision => 'REL1_23',
+  }
+
+On ubuntu:
+Error: Path /var/www/html exists and is not the desired repository.
+Error: /Stage[main]/Mediawiki/Vcsrepo[/var/www/html]/ensure: change from absent to present failed: Path /var/www/html exists and is not the desired repository.
+
+Due to the existence of /var/www/html/index.html and git doesn't overwrite directories:
+vagrant@wikitest:~$ ls -la /var/www/html/
+total 20
+drwxr-xr-x 2 root root  4096 Jul  3 22:09 .
+drwxr-xr-x 3 root root  4096 Jul  3 22:09 ..
+-rw-r--r-- 1 root root 11510 Jul  3 22:09 index.html
+
+put this in mediawiki/manifests/init.pp:
+  file { '/var/www/html/index.html':
+    ensure => 'absent',
+  }
+
+MANUAL RESOURCE ORDERING
+automatic resource doesn't work here so needs to be declared manually.
+
+ordering arrow in init.pp
+
+  File['/var/www/html/index.html'] -> Vcsrepo['/var/www/html']
+                                      title is from vcsrepo
+                                      
+INSTALL MYSQL
+
+[root@puppetmaster modules]# puppet module install puppetlabs-mysql --modulepath /etc/puppet/environments/production/modules/
+Notice: Preparing to install into /etc/puppet/environments/production/modules ...
+Notice: Downloading from https://forgeapi.puppetlabs.com ...
+
+set password to training in init.pp:
+
+  class { '::mysql::server':
+    root_password => 'training',
+  }
+
+INSTALL FIREWALL module:
+[root@puppetmaster modules]# puppet module install puppetlabs-firewall --modulepath /etc/puppet/environments/production/modules/
+Notice: Preparing to install into /etc/puppet/environments/production/modules ...
+Notice: Downloading from https://forgeapi.puppetlabs.com ...
+Notice: Installing -- do not interrupt ...
+/etc/puppet/environments/production/modules
+└── puppetlabs-firewall (v1.9.0)
+
+  class { '::firewall': }
+  
+  firewall { '000 allow http access': 
+    port => '80',
+    proto => 'tcp',
+    action => 'accept',
+  }
+
+ON CLIENT after puppet agent is ran:
+
+[vagrant@wiki ~]$ sudo iptables -L
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+ACCEPT     tcp  --  anywhere             anywhere            multiport ports http /* 000 allow http access */ 

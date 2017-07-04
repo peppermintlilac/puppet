@@ -1,0 +1,12 @@
+VARIABLE ARRAY:
+
+puppetmaster:
+class linux {
+  # creating a variable array
+  $admintools = [ 'git',  'nano', 'screen']
+
+  package { $admintools:
+   ensure => 'installed',
+
+NOTE: if you want to uninstall ntp, you have to specify in the manifest. Puppet will not uninstall if it's not defined in manifest.
+

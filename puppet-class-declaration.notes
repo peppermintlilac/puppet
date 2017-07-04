@@ -1,0 +1,45 @@
+Do not repeat yourself. This is where CLASS declaration comes in.
+
+puppetmaster (nodes.pp)
+remove all of file, package and service types and move them under class linux
+each node should only contain class { 'linux': }
+
+#adding a class
+class linux {
+
+  file { '/info.txt':
+    ensure  => 'present',
+    content => inline_template("Created by Puppet at <%= Time.now %>\n"),
+  }
+
+  package { 'ntp':
+    ensure => 'installed',
+  }
+ 
+# changing with the selector defined above
+#  service { 'ntp':
+  service { $ntpservice:
+    ensure => 'running',
+    enable => true,
+  }
+
+# selector
+  $ntpservice = $osfamily ? {
+    'redhat' => 'ntpd',
+    'debian' => 'ntp',
+    default  => 'ntp',
+  }
+}
+
+CLIENTS:
+[vagrant@wiki ~]$ sudo puppet agent --verbose --no-daemonize --onetime
+Info: Retrieving pluginfacts
+Info: Retrieving plugin
+Info: Caching catalog for wiki.home
+Info: Applying configuration version '1499110646'
+Info: Computing checksum on file /info.txt
+Info: /Stage[main]/Linux/File[/info.txt]: Filebucketed /info.txt to puppet with sum 217fd4bb9a11d066d781d25e54b8b766
+Notice: /Stage[main]/Linux/File[/info.txt]/content: content changed '{md5}217fd4bb9a11d066d781d25e54b8b766' to '{md5}fae6872463ddf7e848bf660a53ac1f8b'
+Notice: Finished catalog run in 0.19 seconds
+[vagrant@wiki ~]$ 
+

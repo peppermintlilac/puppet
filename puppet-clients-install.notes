@@ -1,0 +1,62 @@
+Inorder for wiki and wikitest to resolve the puppet master, add it to the host file.
+-puppet uses SSL certs
+-SSL certs need a hostname
+
+Add puppetmaster to /etc/hosts on both wiki and wikitest:
+root@wikitest:~# echo 172.31.0.201 puppetmaster >> /etc/hosts
+
+Install rpm and puppet client on each client:
+
+CENTOS
+# yum -y install http://yum.puppetlabs.com/puppetlabs-release-el-6.noarch.rpm
+
+# yum -y install puppet
+
+# nano /etc/puppet/puppet.conf
+add under [agent]
+server = puppetmaster (name of the master)
+
+Generate the SSL certs
+# puppet agent --verbose --no-daemonize --onetime
+Error: Could not request certificate: Find /production/certificate/ca?fail_on_404=true resulted in 404 with the message: <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>404 Not Found</title>
+</head><body>
+<h1>Not Found</h1>
+<p>The requested URL /production/certificate/ca was not found on this server.</p>
+<hr>
+<address>Apache/2.2.15 (CentOS) Server at puppetmaster Port 8140</address>
+</body></html>
+
+Troubleshooting:
+service httpd status
+curl -k http://localhost:8140
+
+Due to /etc/sysconfig/selinux NOT linked to /etc/selinux/config
+
+On puppetmaster:
+# sed -i 's\=enforcing\=permissive\g' /etc/selinux/config
+[root@puppetmaster ~]# getenforce
+Permissive
+
+# reboot
+
+Generate the SSL certs again on client:
+# puppet agent --verbose --no-daemonize --onetime
+
+UBUNTU
+# wget https://apt.puppetlabs.com/puppetlabs-release-trusty.deb
+
+# dpkg -i puppetlabs-release-trusty.deb 
+
+# apt-get update
+
+# apt-get install puppet
+
+# nano /etc/puppet/puppet.conf
+[agent]
+server = puppetmaster
+
+# puppet agent --enable (specific to Ubuntu that you have to start puppet agent)
+
+# puppet agent --verbose --no-daemonize --onetime

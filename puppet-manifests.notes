@@ -1,0 +1,25 @@
+puppet manifest:
+-node definitions
+-resource declarations
+-variables
+-classes
+
+# nano /etc/puppet/environments/production/manifests/nodes.pp
+
+node 'wiki' {
+
+}
+
+node 'wikitest' {
+
+}
+
+Resource type: file
+
+file { '<UNIQUE_TITLE>':
+   <ATTRIBUTE1> => <VALUE>,
+   <ATTRIBUTEn> => <VALUEn>,
+}
+
+Embedded Ruby (ERB) block: <%= <WHATEVER_VALUE> %>
+

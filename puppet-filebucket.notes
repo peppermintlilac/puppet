@@ -1,0 +1,60 @@
+On node, notice MD5 hash when puppet agent is ran? Puppet overwrites new file if content has changed.
+[vagrant@wiki ~]$ sudo puppet agent --verbose --no-daemonize --onetime
+Info: Retrieving pluginfacts
+Info: Retrieving plugin
+Info: Caching catalog for wiki.home
+Info: Applying configuration version '1498879023'
+Notice: /Stage[main]/Main/Node[wiki]/File[/info.txt]/ensure: created
+Notice: Finished catalog run in 0.03 seconds
+[vagrant@wiki ~]$ sudo cat /info.txt 
+Created by Puppet at Fri Jun 30 23:17:03 -0400 2017
+
+[vagrant@wiki ~]$ sudo puppet agent --verbose --no-daemonize --onetime
+Info: Retrieving pluginfacts
+Info: Retrieving plugin
+Info: Caching catalog for wiki.home
+Info: Applying configuration version '1498879075'
+Info: Computing checksum on file /info.txt
+Info: /Stage[main]/Main/Node[wiki]/File[/info.txt]: Filebucketed /info.txt to puppet with sum 30e0a8542b6a153a053a098a153ad9b7
+Notice: /Stage[main]/Main/Node[wiki]/File[/info.txt]/content: content changed '{md5}30e0a8542b6a153a053a098a153ad9b7' to '{md5}f5bbedb448ae8edab05c40fe4a146d45'
+Notice: Finished catalog run in 0.04 seconds
+[vagrant@wiki ~]$ sudo cat /info.txt 
+Created by Puppet at Fri Jun 30 23:17:55 -0400 2017
+
+Overwrite issue: recover it with client filebucket
+values are stored in node (not master): /var/lib/puppet/clientbucket/<MD5 hash>
+-MD5 (message digest algorithm 5): cryptographic hash (Ronald Rivest)
+-takes up random data (text or binary) as an input and generate a fixed size hash value as an output
+
+[vagrant@wiki ~]$ sudo puppet agent --verbose --no-daemonize --onetime
+Info: Retrieving pluginfacts
+Info: Retrieving plugin
+Info: Caching catalog for wiki.home
+Info: Applying configuration version '1498879075'
+Info: Computing checksum on file /info.txt
+Info: /Stage[main]/Main/Node[wiki]/File[/info.txt]: Filebucketed /info.txt to puppet with sum 30e0a8542b6a153a053a098a153ad9b7
+Notice: /Stage[main]/Main/Node[wiki]/File[/info.txt]/content: content changed '{md5}30e0a8542b6a153a053a098a153ad9b7' to '{md5}f5bbedb448ae8edab05c40fe4a146d45'
+Notice: Finished catalog run in 0.04 seconds
+
+[vagrant@wiki ~]$ sudo cat /info.txt 
+Created by Puppet at Fri Jun 30 23:17:55 -0400 2017
+
+[vagrant@wiki ~]$ sudo tail /var/log/messages
+Jun 30 23:17:04 wiki puppet-agent[1673]: (/Stage[main]/Main/Node[wiki]/File[/info.txt]/ensure) created
+Jun 30 23:17:04 wiki puppet-agent[1673]: Finished catalog run in 0.03 seconds
+Jun 30 23:17:54 wiki puppet-agent[1833]: Retrieving pluginfacts
+Jun 30 23:17:55 wiki puppet-agent[1833]: Retrieving plugin
+Jun 30 23:17:55 wiki puppet-agent[1833]: Caching catalog for wiki.home
+Jun 30 23:17:55 wiki puppet-agent[1833]: Applying configuration version '1498879075'
+Jun 30 23:17:55 wiki puppet-agent[1833]: Computing checksum on file /info.txt
+Jun 30 23:17:55 wiki puppet-agent[1833]: (/Stage[main]/Main/Node[wiki]/File[/info.txt]) Filebucketed /info.txt to puppet with sum 30e0a8542b6a153a053a098a153ad9b7
+Jun 30 23:17:55 wiki puppet-agent[1833]: (/Stage[main]/Main/Node[wiki]/File[/info.txt]/content) content changed '{md5}30e0a8542b6a153a053a098a153ad9b7' to '{md5}f5bbedb448ae8edab05c40fe4a146d45'
+Jun 30 23:17:55 wiki puppet-agent[1833]: Finished catalog run in 0.04 seconds
+
+[vagrant@wiki ~]$ sudo puppet filebucket -l --bucket /var/lib/puppet/clientbucket restore /info.txt 30e0a8542b6a153a053a098a153ad9b7
+
+[vagrant@wiki ~]$ sudo cat /info.txt 
+Created by Puppet at Fri Jun 30 23:17:03 -0400 2017
+
+[vagrant@wiki ~]$ sudo puppet filebucket -l --bucket /var/lib/puppet/clientbucket get 30e0a8542b6a153a053a098a153ad9b7
+Created by Puppet at Fri Jun 30 23:17:03 -0400 2017

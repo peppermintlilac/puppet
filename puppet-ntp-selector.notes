@@ -1,0 +1,127 @@
+ntp service varies, depends on the OS: ntp, ntpd
+
+SELECTORS:
+
+Adding selector:
+$ntpservice = $osfamily ? {
+-> variable      puppet fact
+  'redhat' => 'ntpd',
+  'debian' => 'ntp',
+  default  => 'ntp',
+}
+
+[root@puppetmaster manifests]# cat nodes.pp 
+
+# selector
+$ntpservice = $osfamily ? {
+  'redhat' => 'ntpd',
+  'debian' => 'ntp',
+  default  => 'ntp',
+}
+
+node 'wiki' {
+
+  file { '/info.txt':
+    ensure  => 'present',
+    content => inline_template("Created by Puppet at <%= Time.now %>\n"),
+  }
+  package { 'ntp':
+    ensure => 'installed',
+  }
+
+# changing with the selector defined above
+# service { 'ntpd':
+  service { $ntpservice:
+    ensure => 'running',
+    enable => true,
+  }
+
+}
+
+node 'wikitest' {
+  package { 'ntp':
+    ensure => 'installed',
+  }
+ 
+# changing with the selector defined above
+#  service { 'ntp':
+  service { $ntpservice:
+    ensure => 'running',
+    enable => true,
+  }
+
+}
+
+CLIENT:
+[vagrant@wiki ~]$ sudo yum remove ntp
+Loaded plugins: fastestmirror
+Setting up Remove Process
+Resolving Dependencies
+--> Running transaction check
+---> Package ntp.x86_64 0:4.2.6p5-10.el6.centos.2 will be erased
+--> Finished Dependency Resolution
+
+Dependencies Resolved
+
+=======================================================================================================================================
+ Package                  Arch                        Version                                         Repository                  Size
+=======================================================================================================================================
+Removing:
+ ntp                      x86_64                      4.2.6p5-10.el6.centos.2                         @base                      1.6 M
+
+Transaction Summary
+=======================================================================================================================================
+Remove        1 Package(s)
+
+Installed size: 1.6 M
+Is this ok [y/N]: y
+Downloading Packages:
+Running rpm_check_debug
+Running Transaction Test
+Transaction Test Succeeded
+Running Transaction
+  Erasing    : ntp-4.2.6p5-10.el6.centos.2.x86_64                                                                                  1/1 
+  Verifying  : ntp-4.2.6p5-10.el6.centos.2.x86_64                                                                                  1/1 
+
+Removed:
+  ntp.x86_64 0:4.2.6p5-10.el6.centos.2                                                                                                 
+
+Complete!
+
+[vagrant@wiki ~]$ sudo puppet agent --verbose --no-daemonize --onetime
+Info: Retrieving pluginfacts
+Info: Retrieving plugin
+Info: Caching catalog for wiki.home
+Info: Applying configuration version '1499109837'
+Notice: /Stage[main]/Main/Node[wiki]/Package[ntp]/ensure: created
+Info: Computing checksum on file /info.txt
+Info: /Stage[main]/Main/Node[wiki]/File[/info.txt]: Filebucketed /info.txt to puppet with sum e2876fcd44f0a469c18bdc31861b3610
+Notice: /Stage[main]/Main/Node[wiki]/File[/info.txt]/content: content changed '{md5}e2876fcd44f0a469c18bdc31861b3610' to '{md5}217fd4bb9a11d066d781d25e54b8b766'
+Notice: /Stage[main]/Main/Node[wiki]/Service[ntpd]/ensure: ensure changed 'stopped' to 'running'
+Info: /Stage[main]/Main/Node[wiki]/Service[ntpd]: Unscheduling refresh on Service[ntpd]
+Notice: Finished catalog run in 3.95 seconds
+
+
+[vagrant@wiki ~]$ sudo service ntpd status
+ntpd (pid  3973) is running...
+
+-----
+vagrant@wikitest:~$ sudo service ntp status
+ * NTP server is running
+
+vagrant@wikitest:~$ sudo service ntp stop
+ * Stopping NTP server ntpd                                                                                                     [ OK ] 
+
+vagrant@wikitest:~$ sudo puppet agent --verbose --no-daemonize --onetime
+Warning: Setting templatedir is deprecated. See http://links.puppetlabs.com/env-settings-deprecations
+   (at /usr/lib/ruby/vendor_ruby/puppet/settings.rb:1139:in `issue_deprecation_warning')
+Info: Retrieving plugin
+Info: Caching catalog for wikitest.home
+Info: Applying configuration version '1499110081'
+Notice: /Stage[main]/Main/Node[wikitest]/Service[ntp]/ensure: ensure changed 'stopped' to 'running'
+Info: /Stage[main]/Main/Node[wikitest]/Service[ntp]: Unscheduling refresh on Service[ntp]
+Notice: Finished catalog run in 0.09 seconds
+
+vagrant@wikitest:~$ sudo service ntp status
+ * NTP server is running
+vagrant@wikitest:~$ 

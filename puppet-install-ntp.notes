@@ -1,0 +1,27 @@
+on puppetmaster:
+declare package resource NTP under each node declaration in nodes.pp
+
+  package { 'ntp':
+    ensure => 'installed',
+  }
+
+On agent:
+check if ntp is installed, yum info ntp: available
+[vagrant@wiki ~]$ sudo puppet agent --verbose --no-daemonize --onetime
+Notice: /Stage[main]/Main/Node[wiki]/Package[ntp]/ensure: created
+check if ntp is installed, yum info ntp: now installed
+
+vagrant@wikitest:~$ sudo puppet agent --verbose --no-daemonize --onetime
+Notice: /Stage[main]/Main/Node[wikitest]/Package[ntp]/ensure: ensure changed 'purged' to 'present'
+
+vagrant@wikitest:~$ sudo ls /usr/sbin/ntpd -la
+-rwxr-xr-x 1 root root 671440 Oct  5  2016 /usr/sbin/ntpd
+
+On puppetmaster:
+declare service ntp to run:
+
+  service { 'ntpd':
+    ensure => 'running',
+    enable => true,
+  }
+

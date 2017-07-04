@@ -1,0 +1,24 @@
+It is important that Puppet Master knows it's pushing the configuration to the right node.
+puppetmaster shows a list of certs waiting to be signed
+puppetmaster signs certs manually
+
+# puppet cert list
+  "wiki.home"     (SHA256) 5F:87:39:13:29:4B:79:D3:79:23:26:85:14:7D:0B:23:AA:DF:D1:43:6F:BF:13:1B:20:15:4B:46:AA:C3:6C:BA
+  "wikitest.home" (SHA256) 30:51:D7:B8:8C:CB:3A:88:94:17:D8:9A:F4:22:C8:65:70:A9:99:60:23:EC:95:E8:0D:8C:AD:8F:19:EC:9A:E8
+[root@puppetmaster ~]# 
+
+[root@puppetmaster ~]# puppet cert sign wiki.home
+Notice: Signed certificate request for wiki.home
+Notice: Removing file Puppet::SSL::CertificateRequest wiki.home at '/var/lib/puppet/ssl/ca/requests/wiki.home.pem'
+
+[root@puppetmaster ~]# puppet cert sign wikitest.home
+Notice: Signed certificate request for wikitest.home
+Notice: Removing file Puppet::SSL::CertificateRequest wikitest.home at '/var/lib/puppet/ssl/ca/requests/wikitest.home.pem'
+[root@puppetmaster ~]# 
+
+On agents:
+# puppet agent --verbose --no-daemonize --onetime
+
+Error: "use puppet agent --enable to re-enable"
+Due to puppet agent no running. Start puppet agent.
+
