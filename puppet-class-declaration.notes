@@ -31,6 +31,18 @@ class linux {
   }
 }
 
+so nodes.pp should have this class linux declared in each node:
+
+node 'wiki' {
+
+  class { 'linux': }
+}
+
+node 'wikitest' {
+
+  class { 'linux': }
+}
+
 CLIENTS:
 [vagrant@wiki ~]$ sudo puppet agent --verbose --no-daemonize --onetime
 Info: Retrieving pluginfacts
